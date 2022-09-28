@@ -1,2 +1,2 @@
 # ACA-Premium-UDR
-Bicep templates for deploying a Container Apps environment with UDR 
+ARM and Bicep templates for deploying a Container Apps environment with UDR 
