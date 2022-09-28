@@ -1,0 +1,76 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "defaultdomain": {
+      "defaultValue": "udrroutingtable",
+      "type": "String"
+    },
+    "managedEnvironments_name": {
+      "defaultValue": "testenv",
+      "type": "String"
+    },
+    "customer_vnet_name": {
+      "defaultValue": "int-vnet",
+      "type": "String"
+    },
+    "containerappname": {
+      "defaultValue": "testapp",
+      "type": "String"
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "type": "Microsoft.Network/privateDnsZones/A",
+      "apiVersion": "2018-09-01",
+      "name": "[concat(parameters('defaultdomain'), '/',parameters('containerappname'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', parameters('defaultdomain'))]"
+      ],
+      "properties": {
+        "ttl": 10,
+        "aRecords": [
+          {
+            "ipv4Address": "[reference(resourceId('Microsoft.App/managedEnvironments',parameters('managedEnvironments_name')),'2022-03-01', 'Full').properties.staticIp]"
+          }
+        ]
+      }
+    },
+
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2018-09-01",
+      "name": "[parameters('defaultdomain')]",
+      "location": "global",
+      "properties": {
+        "maxNumberOfRecordSets": 25000,
+        "maxNumberOfVirtualNetworkLinks": 1000,
+        "maxNumberOfVirtualNetworkLinksWithRegistration": 100,
+        "numberOfRecordSets": 14,
+        "numberOfVirtualNetworkLinks": 1,
+        "numberOfVirtualNetworkLinksWithRegistration": 1,
+        "provisioningState": "Succeeded"
+      }
+
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2018-09-01",
+      "name": "[concat(parameters('defaultdomain'), '/link')]",
+      "location": "global",
+
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', parameters('defaultdomain'))]"
+
+      ],
+      "properties": {
+        "registrationEnabled": true,
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]"
+        }
+      }
+    }
+  ],
+  "outputs": {}
+}

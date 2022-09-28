@@ -1,0 +1,429 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "egressRoutingTable": {
+      "defaultValue": "udrroutingtable",
+      "type": "String"
+    },
+    "azurefirewall_name": {
+      "defaultValue": "azurefirewallappliance",
+      "type": "String"
+    },
+    "customer_vnet_name": {
+      "defaultValue": "int-vnet",
+      "type": "String"
+    },
+    "publicIP_azurefirewall": {
+      "defaultValue": "azurefirewallip",
+      "type": "String"
+    },
+    "location": {
+      "defaultValue": "centralus",
+      "type": "String"
+    },
+    "aks-sp-id": {
+      "defaultValue": "f48ea613-e991-46ef-a7b0-91f8d50b5ce4",
+      "type": "String"
+    }
+  },
+  "variables": {},
+  "outputs": {
+    "virtualNetworkId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]"
+    },
+    "infrastructureSubnetId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'appssubnet')]"
+    },
+    // "runtimeSubnetId": {
+    //   "type": "string",
+    //   "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'appssubnet')]"
+    // },
+    "appGatewaySubnetId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'appgateway')]"
+    },
+    "virtualApplianceIp": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIP_azurefirewall')),'2022-05-01', 'Full').properties.ipAddress]"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2018-09-01-preview",
+       "name": "[guid(resourceGroup().id)]",
+      "properties": {
+        "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
+        "principalId": "[parameters('aks-sp-id')]"
+
+      },
+      "scope": "[concat('Microsoft.Network/routeTables', '/',parameters('egressRoutingTable'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/routeTables', parameters('egressRoutingTable'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2020-11-01",
+      "name": "[parameters('publicIP_azurefirewall')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Regional"
+      },
+      "properties": {
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Static",
+        "idleTimeoutInMinutes": 4,
+        "ipTags": []
+      }
+    },
+    {
+      "type": "Microsoft.Network/routeTables",
+      "apiVersion": "2020-11-01",
+      "name": "[parameters('egressRoutingTable')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/azureFirewalls', parameters('azurefirewall_name'))]"
+      ],
+      "properties": {
+        "disableBgpRoutePropagation": false,
+        "routes": [
+          {
+            "name": "egress-fwrn",
+            "properties": {
+              "addressPrefix": "0.0.0.0/0",
+              "nextHopType": "VirtualAppliance",
+              "nextHopIpAddress": "[reference(resourceId('Microsoft.Network/azureFirewalls',parameters('azurefirewall_name')),'2022-05-01', 'Full').properties.ipConfigurations[0].properties.privateIPAddress]",
+              "hasBgpOverride": false
+            }
+          },
+          {
+            "name": "egress-fwinternet",
+            "properties": {
+              "addressPrefix": "[concat(reference(resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIP_azurefirewall')),'2022-05-01', 'Full').properties.ipAddress,'/32')]",
+              "nextHopType": "Internet",
+              "hasBgpOverride": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2020-11-01",
+      "name": "[parameters('customer_vnet_name')]",
+      "location": "[parameters('location')]",
+
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "AzureFirewallSubnet",
+            "properties": {
+              "addressPrefix": "10.0.2.0/24",
+              "serviceEndpoints": [],
+              "delegations": [],
+              "privateEndpointNetworkPolicies": "Disabled",
+              "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+          },
+          {
+            "name": "appGatewaySubne",
+            "properties": {
+              "addressPrefix": "10.0.3.0/24",
+              "serviceEndpoints": [],
+              "delegations": [
+                {
+                  "name": "Microsoft.Web.serverFarms",
+                  "properties": {
+                    "serviceName": "Microsoft.Web/serverFarms"
+                  }
+                }
+              ],
+              "privateEndpointNetworkPolicies": "Disabled",
+              "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+          }
+        ],
+        "virtualNetworkPeerings": [],
+        "enableDdosProtection": false
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2020-11-01",
+      "name": "[concat(parameters('customer_vnet_name'), '/AzureFirewallSubnet')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]"
+      ],
+      "properties": {
+        "addressPrefix": "10.0.2.0/24",
+        "serviceEndpoints": [],
+        "delegations": [],
+        "privateEndpointNetworkPolicies": "Disabled",
+        "privateLinkServiceNetworkPolicies": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Network/azureFirewalls",
+      "apiVersion": "2020-11-01",
+      "name": "[parameters('azurefirewall_name')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIP_azurefirewall'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'AzureFirewallSubnet')]"
+      ],
+      "properties": {
+        "sku": {
+          "name": "AZFW_VNet",
+          "tier": "Standard"
+        },
+        "threatIntelMode": "Alert",
+        "additionalProperties": {
+          "Network.DNS.EnableProxy": "true"
+        },
+        "ipConfigurations": [
+          {
+            "name": "egress-fwconfig",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIP_azurefirewall'))]"
+              },
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'AzureFirewallSubnet')]"
+              }
+            }
+          }
+        ],
+        "networkRuleCollections": [
+          {
+            "name": "aksfwnr",
+            "properties": {
+              "priority": 100,
+              "action": {
+                "type": "Allow"
+              },
+              "rules": [
+                {
+                  "name": "api",
+                  "protocols": [
+                    "UDP",
+                    "TCP"
+                  ],
+                  "sourceAddresses": [
+                    "*"
+                  ],
+                  "destinationAddresses": [
+                    "*"
+                  ],
+                  "sourceIpGroups": [],
+                  "destinationIpGroups": [],
+                  "destinationFqdns": [],
+                  "destinationPorts": [
+                    "*"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "applicationRuleCollections": [
+          {
+            "name": "aksfwar",
+            "properties": {
+              "priority": 100,
+              "action": {
+                "type": "Allow"
+              },
+              "rules": [
+                {
+                  "name": "all",
+                  "protocols": [
+                    {
+                      "protocolType": "Http",
+                      "port": 80
+                    },
+                    {
+                      "protocolType": "Https",
+                      "port": 443
+                    },
+                    {
+                      "protocolType": "Mssql",
+                      "port": 1443
+                    }
+                  ],
+                  "fqdnTags": [],
+                  "targetFqdns": [
+                    "*"
+                  ],
+                  "sourceAddresses": [
+                    "*"
+                  ],
+                  "sourceIpGroups": []
+                },
+                {
+                  "name": "fqdn",
+                  "protocols": [
+                    {
+                      "protocolType": "Http",
+                      "port": 80
+                    },
+                    {
+                      "protocolType": "Https",
+                      "port": 443
+                    }
+                  ],
+                  "fqdnTags": [
+                    "AzureKubernetesService",
+                    "WindowsVirtualDesktop",
+                    "WindowsUpdate",
+                    "WindowsDiagnostics",
+                    "MicrosoftActiveProtectionService",
+                    "HDInsight",
+                    "AzureBackup",
+                    "AppServiceEnvironment"
+                  ],
+                  "targetFqdns": [],
+                  "sourceAddresses": [
+                    "*"
+                  ],
+                  "sourceIpGroups": []
+                }
+              ]
+            }
+          }
+        ],
+        "natRuleCollections": [
+          //{
+          //  "name": "rdc",
+          //  "properties": {
+          //    "priority": 102,
+          //    "action": {
+          //      "type": "Dnat"
+          //    },
+          //    "rules": [
+          //      {
+          //        "name": "rdc",
+          //        "protocols": [
+          //          "TCP",
+          //          "UDP"
+          //        ],
+          //        "translatedAddress": "20.81.40.72",
+          //        "translatedPort": "3389",
+          //        "sourceAddresses": [
+          //          "*"
+          //        ],
+          //        "sourceIpGroups": [],
+          //        "destinationAddresses": [
+          //          "23.96.41.30"
+          //        ],
+          //        "destinationPorts": [
+          //          "3389"
+          //        ]
+          //      }
+          //    ]
+          //  }
+          //},
+          //{
+          //  "name": "web",
+          //  "properties": {
+          //    "priority": 100,
+          //    "action": {
+          //      "type": "Dnat"
+          //    },
+          //    "rules": [
+          //      {
+          //        "name": "http",
+          //        "protocols": [
+          //          "TCP",
+          //          "UDP"
+          //        ],
+          //        "translatedAddress": "20.121.80.45",
+          //        "translatedPort": "80",
+          //        "sourceAddresses": [
+          //          "*"
+          //        ],
+          //        "sourceIpGroups": [],
+          //        "destinationAddresses": [
+          //          "23.96.41.30"
+          //        ],
+          //        "destinationPorts": [
+          //          "80"
+          //        ]
+          //      },
+          //      {
+          //        "name": "https",
+          //        "protocols": [
+          //          "TCP",
+          //          "UDP"
+          //        ],
+          //        "translatedAddress": "20.121.80.45",
+          //        "translatedPort": "443",
+          //        "sourceAddresses": [
+          //          "*"
+          //        ],
+          //        "sourceIpGroups": [],
+          //        "destinationAddresses": [
+          //          "23.96.41.30"
+          //        ],
+          //        "destinationPorts": [
+          //          "443"
+          //        ]
+          //      }
+          //    ]
+          //  }
+          //}
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2020-11-01",
+      "name": "[concat(parameters('customer_vnet_name'), '/appssubnet')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]",
+        "[resourceId('Microsoft.Network/routeTables', parameters('egressRoutingTable'))]"
+      ],
+      "properties": {
+        "addressPrefix": "10.0.0.0/23",
+        "routeTable": {
+          "id": "[resourceId('Microsoft.Network/routeTables', parameters('egressRoutingTable'))]"
+        },
+        "serviceEndpoints": [],
+        "delegations": [],
+        "privateEndpointNetworkPolicies": "Disabled",
+        "privateLinkServiceNetworkPolicies": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2020-11-01",
+      "name": "[concat(parameters('customer_vnet_name'), '/webappsubnet')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]"
+      ],
+      "properties": {
+        "addressPrefix": "10.0.3.0/24",
+        "serviceEndpoints": [],
+        "delegations": [
+          {
+            "name": "Microsoft.Web.serverFarms",
+            "properties": {
+              "serviceName": "Microsoft.Web/serverFarms"
+            }
+          }
+        ],
+        "privateEndpointNetworkPolicies": "Disabled",
+        "privateLinkServiceNetworkPolicies": "Enabled"
+      }
+    }
+  ]
+}
