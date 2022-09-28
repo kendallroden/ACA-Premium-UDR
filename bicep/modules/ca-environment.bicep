@@ -1,6 +1,6 @@
 param containerAppsEnvName string
 param logAnalyticsWorkspaceName string = 'logs-${containerAppsEnvName}'
-param location string = resourceGroup().location
+param location string = 'australiaeast'
 param vnetName string 
 param containerAppsSubnetProps object
 param egressRoutingTableName string 
@@ -40,8 +40,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2020-03
   })
 }
 
-// https://github.com/Azure/azure-rest-api-specs/blob/Microsoft.App-2022-01-01-preview/specification/app/resource-manager/Microsoft.App/preview/2022-01-01-preview/ManagedEnvironments.json
-resource environment 'Microsoft.App/managedEnvironments@2022-01-01-preview' = {
+resource environment 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
   name: containerAppsEnvName
   location: location
   sku: {
@@ -76,12 +75,6 @@ resource environment 'Microsoft.App/managedEnvironments@2022-01-01-preview' = {
     zoneRedundant: false
   }
 }
-
-
-
-  
-
- 
 
 output cappsEnvId string = environment.id
 output defaultDomain string = environment.properties.defaultDomain
