@@ -75,6 +75,7 @@ module containerAppsEnvModule 'modules/ca-environment.bicep' = {
     containerAppsEnvName: containerAppsEnvName
     logAnalyticsWorkspaceName: logAnalyticsWorkspaceName
     containerAppsSubnetProps: containerAppsSubnet
+    containerAppsSubnetId: '${vnetModule.outputs.vnetId}/subnets/${containerAppsSubnet.name}'
     virtualNetworkApplianceIP: azureFirewallModule.outputs.virtualAppliancePublicIP
     egressRoutingTableName: egressRoutingTableName
     vnetName: vnetName
