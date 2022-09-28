@@ -1,9 +1,8 @@
 param containerAppsEnvName string
 param logAnalyticsWorkspaceName string = 'logs-${containerAppsEnvName}'
-param location string = 'australiaeast'
+param location string
 param vnetName string 
 param containerAppsSubnetProps object
-param containerAppsSubnetId string
 param egressRoutingTableName string 
 param virtualNetworkApplianceIP string 
 
@@ -57,7 +56,7 @@ resource environment 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
     ]
     vnetConfiguration: {
       internal: true
-      infrastructureSubnetId: containerAppsSubnetId
+      infrastructureSubnetId: containerAppsSubnet.id
       dockerBridgeCidr: '10.2.0.1/16'
       platformReservedCidr: '10.1.0.0/16'
       platformReservedDnsIP: '10.1.0.2'
