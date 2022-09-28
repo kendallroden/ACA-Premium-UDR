@@ -42,7 +42,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2020-03
 
 resource environment 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
   name: containerAppsEnvName
-  location: location
+  location: 'northcentralusstage'
   sku: {
     name: 'Premium'
   }
