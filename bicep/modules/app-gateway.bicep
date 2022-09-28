@@ -2,27 +2,11 @@ param appGatewayName string
 param appGatewayIPName string
 param containerAppsEnvName string 
 param location string
-param vnetName string 
-param appGatewaySubnetProps object
+param appGatewaySubnetId string
 
 // Reference existing Container Apps Environment 
 resource environment 'Microsoft.App/managedEnvironments@2022-06-01-preview' existing = {
   name: containerAppsEnvName
-}
-
-
-resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' existing = {
-  name: vnetName
-}
-
-// Create Subnet to host Azure Firewall 
-resource appGatewaySubnet 'Microsoft.Network/virtualNetworks/subnets@2020-08-01' = {
-  name: '${vnet.name}/${appGatewaySubnetProps.name}'
-  properties: {
-    addressPrefix: appGatewaySubnetProps.properties.addressPrefix
-    privateEndpointNetworkPolicies: 'Disabled'
-    privateLinkServiceNetworkPolicies: 'Enabled'
-  }
 }
 
 // Create a Frontend, Public IP for App Gateway 
@@ -54,7 +38,7 @@ resource appGatewayInstance 'Microsoft.Network/applicationGateways@2020-11-01' =
         name: 'appGatewayIpConfig'
         properties: {
           subnet: {
-            id: appGatewaySubnet.id
+            id: appGatewaySubnetId
           }
         }
       }

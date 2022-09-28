@@ -2,23 +2,8 @@ param azureFirewallName string
 param azureFirewallIPName string 
 param egressRoutingTableName string 
 param location string
-param vnetName string 
-param azureFirewallSubnetProps object
+param azureFirewallSubnetId string 
 param aks_sp_id string = 'f48ea613-e991-46ef-a7b0-91f8d50b5ce4'
-
-resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' existing = {
-  name: vnetName
-}
-
-// Create Subnet to host Azure Firewall 
-resource azureFirewallSubnet 'Microsoft.Network/virtualNetworks/subnets@2020-08-01' = {
-  name: '${vnet.name}/${azureFirewallSubnetProps.name}'
-  properties: {
-    addressPrefix: azureFirewallSubnetProps.properties.addressPrefix
-    privateEndpointNetworkPolicies: 'Disabled'
-    privateLinkServiceNetworkPolicies: 'Enabled'
-  }
-}
 
 // Create a Public IP for Azure Firewall 
 resource azureFirewallPublicIP 'Microsoft.Network/publicIPAddresses@2020-11-01' = {
@@ -56,7 +41,7 @@ resource azureFirewall 'Microsoft.Network/azureFirewalls@2020-11-01' = {
             id: azureFirewallPublicIP.id
           }
           subnet: {
-            id: azureFirewallSubnet.id
+            id: azureFirewallSubnetId
           }
         }
       }

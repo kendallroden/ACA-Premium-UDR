@@ -3,7 +3,6 @@ param uniqueSeed string = '${subscription().subscriptionId}-${resourceGroup().na
 param uniqueSuffix string = 'da-${uniqueString(uniqueSeed)}'
 param containerAppsEnvName string = 'env-${uniqueSuffix}'
 param logAnalyticsWorkspaceName string = 'log-${uniqueSuffix}'
-param appInsightsName string = 'appinsights-${uniqueSuffix}'
 param vnetName string = 'vnet-${uniqueSuffix}'
 param vnetPrefix string = '10.0.0.0/16'
 param azureFirewallName string = 'azureFirewall'
@@ -34,6 +33,11 @@ var appGatewaySubnet = {
   }
 }
 
+var subnets = [
+  appGatewaySubnet
+  firewallSubnet
+]
+
 // Deploy an Azure Virtual Network 
 module vnetModule 'modules/vnet.bicep' = {
   name: '${deployment().name}--vnet'
@@ -41,9 +45,9 @@ module vnetModule 'modules/vnet.bicep' = {
     location: location
     vnetName: vnetName
     vnetPrefix: vnetPrefix
+    subnets: subnets
   }
 }
-
 
 // Deploy and configure Azure Firewall 
 module azureFirewallModule 'modules/azure-firewall.bicep' = {
@@ -53,8 +57,7 @@ module azureFirewallModule 'modules/azure-firewall.bicep' = {
   ]
   params: {
     location: location
-    azureFirewallSubnetProps: firewallSubnet
-    vnetName: vnetName
+    azureFirewallSubnetId: '${vnetModule.outputs.vnetId}/subnets/${firewallSubnet.name}'
     azureFirewallIPName: azureFirewallIPName
     azureFirewallName: azureFirewallName
     egressRoutingTableName: egressRoutingTableName
@@ -78,6 +81,7 @@ module containerAppsEnvModule 'modules/ca-environment.bicep' = {
   }
 }
 
+
 // Deploy and configure Azure Application Gateway
 module appGatewayModule 'modules/app-gateway.bicep' = {
   name: '${deployment().name}--appGateway'
@@ -88,8 +92,7 @@ module appGatewayModule 'modules/app-gateway.bicep' = {
   params: {
     location: location
     containerAppsEnvName: containerAppsEnvName
-    appGatewaySubnetProps: appGatewaySubnet
-    vnetName: vnetName
+    appGatewaySubnetId: '${vnetModule.outputs.vnetId}/subnets/${appGatewaySubnet.name}'
     appGatewayIPName: appGatewayIPName
     appGatewayName: appGatewayName
   }
