@@ -5,6 +5,14 @@ param location string
 param azureFirewallSubnetId string 
 param aks_sp_id string = 'f48ea613-e991-46ef-a7b0-91f8d50b5ce4'
 
+//If using NorthUSStage, use CentralUS
+param containerAppEnvLocation string = location
+
+//AKS FQDN and service tag dependencies. For the region-specific FQDN and service tags, we use the Container App Environment location, minus any spaces
+var containerAppEnvLocationNoSpace = replace(containerAppEnvLocation, ' ', '')
+var fqdnHttpsAKS = '*.hcp.${containerAppEnvLocationNoSpace}.azmk8s.io'
+var azureCloudRegionServiceTag = 'AzureCloud.${containerAppEnvLocationNoSpace}'
+
 // Create a Public IP for Azure Firewall 
 resource azureFirewallPublicIP 'Microsoft.Network/publicIPAddresses@2020-11-01' = {
   name: azureFirewallIPName
@@ -56,22 +64,56 @@ resource azureFirewall 'Microsoft.Network/azureFirewalls@2020-11-01' = {
           }
           rules: [
             {
-              name: 'api'
+              name: 'apiTCP'
               protocols: [
-                'UDP'
                 'TCP'
               ]
               sourceAddresses: [
                 '*'
               ]
               destinationAddresses: [
-                '*'
+                'AzureCloud'
               ]
               sourceIpGroups: []
               destinationIpGroups: []
               destinationFqdns: []
               destinationPorts: [
+                '443'
+				'9000'
+              ]
+            }
+            {
+              name: 'apiUDP'
+              protocols: [
+                'UDP'
+              ]
+              sourceAddresses: [
                 '*'
+              ]
+              destinationAddresses: [
+                'AzureCloud'
+              ]
+              sourceIpGroups: []
+              destinationIpGroups: []
+              destinationFqdns: []
+              destinationPorts: [
+                '1194'
+              ]
+            }
+            {
+              name: 'time'
+              protocols: [
+                'UDP'
+              ]
+              sourceAddresses: [
+                '*'
+              ]
+              destinationAddresses: []
+              sourceIpGroups: []
+              destinationIpGroups: []
+              destinationFqdns: ['ntp.ubuntu.com']
+              destinationPorts: [
+                '123'
               ]
             }
           ]
@@ -88,53 +130,27 @@ resource azureFirewall 'Microsoft.Network/azureFirewalls@2020-11-01' = {
           }
           rules: [
             {
-              name: 'all'
+              name: 'api'
               protocols: [
-                {
-                  protocolType: 'Http'
-                  port: 80
-                }
                 {
                   protocolType: 'Https'
                   port: 443
-                }
-                {
-                  protocolType: 'Mssql'
-                  port: 1443
                 }
               ]
               fqdnTags: []
               targetFqdns: [
-                '*'
+                '${fqdnHttpsAKS}'
+				'mcr.microsoft.com'
+				'*.data.mcr.microsoft.com'
+				'management.azure.com'
+				'login.microsoftonline.com'
+				'packages.microsoft.com'
+				'acs-mirror.azureedge.net'
+				'dc.services.visualstudio.com'
+				'*.ods.opinsights.azure.com'
+				'*.oms.opinsights.azure.com'
+				'*.monitoring.azure.com'
               ]
-              sourceAddresses: [
-                '*'
-              ]
-              sourceIpGroups: []
-            }
-            {
-              name: 'fqdn'
-              protocols: [
-                {
-                  protocolType: 'Http'
-                  port: 80
-                }
-                {
-                  protocolType: 'Https'
-                  port: 443
-                }
-              ]
-              fqdnTags: [
-                'AzureKubernetesService'
-                'WindowsVirtualDesktop'
-                'WindowsUpdate'
-                'WindowsDiagnostics'
-                'MicrosoftActiveProtectionService'
-                'HDInsight'
-                'AzureBackup'
-                'AppServiceEnvironment'
-              ]
-              targetFqdns: []
               sourceAddresses: [
                 '*'
               ]
