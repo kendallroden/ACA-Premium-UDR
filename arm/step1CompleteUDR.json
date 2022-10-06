@@ -34,16 +34,18 @@
       "defaultValue": "appgateway",
       "type": "String"
     },
-    "containerapp_name": {
+    "containerappname": {
       "defaultValue": "testapp",
       "type": "String"
     },
-    "managedEnvironment_name": {
+    "managedEnvironments_name": {
       "defaultValue": "testenv",
       "type": "String"
     }
   },
-  "variables": {},
+  "variables": {
+    //"defaultdomain": "internal.containerapps.com"
+  },
   "outputs": {
     "virtualNetworkId": {
       "type": "string",
@@ -51,22 +53,23 @@
     },
     "infrastructureSubnetId": {
       "type": "string",
-      "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'ContainerAppsSubnet')]"
+      "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'appssubnet')]"
     },
-    "appGatewaySubnetId": {
+    "runtimeSubnetId": {
       "type": "string",
-      "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'AppGatewaySub')]"
+      "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'appssubnet')]"
+    },
+    "webappSubnetId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'webappsubnet')]"
     },
     "virtualapplianceip": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIP_azurefirewall')),'2022-05-01', 'Full').properties.ipAddress]"
-    },
-    "envDefaultDomain": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.App/managedEnvironment',parameters('managedEnvironment_name')),'2022-06-01-preview', 'Full').properties.defaultdomain]"
     }
   },
   "resources": [
+
     {
       "type": "Microsoft.Network/publicIPAddresses",
       "apiVersion": "2020-11-01",
@@ -77,6 +80,7 @@
         "tier": "Regional"
       },
       "properties": {
+
         "publicIPAddressVersion": "IPv4",
         "publicIPAllocationMethod": "Static",
         "idleTimeoutInMinutes": 4,
@@ -86,17 +90,17 @@
     {
       "type": "Microsoft.App/containerapps",
       "apiVersion": "2022-06-01-preview",
-      "name": "[parameters('containerapp_name')]",
+      "name": "[parameters('containerappname')]",
       "location": "northcentralusstage",
       "dependsOn": [
-        "[resourceId('Microsoft.App/managedEnvironment', parameters('managedEnvironment_name'))]"
+        "[resourceId('Microsoft.App/managedEnvironments', parameters('managedEnvironments_name'))]"
       ],
       "identity": {
         "type": "None"
       },
       "properties": {
         "workloadProfileType": "GP1",
-        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironment', parameters('managedEnvironment_name'))]",
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('managedEnvironments_name'))]",
         "configuration": {
           "activeRevisionsMode": "Single",
           "ingress": {
@@ -117,22 +121,57 @@
             {
               "image": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
               "name": "premiumexample"
+
             }
           ],
           "scale": {
-            "minReplicas": 1,
+            "minReplicas": 0,
             "maxReplicas": 1
           }
         }
       }
     },
+    //{
+    //  "type": "Microsoft.Network/privateDnsZones",
+    //  "apiVersion": "2018-09-01",
+    //  "name": "[variables('defaultdomain')]",
+    //  "location": "global",
+    //  "properties": {
+    //    "maxNumberOfRecordSets": 25000,
+    //    "maxNumberOfVirtualNetworkLinks": 1000,
+    //    "maxNumberOfVirtualNetworkLinksWithRegistration": 100,
+    //    "numberOfRecordSets": 14,
+    //    "numberOfVirtualNetworkLinks": 1,
+    //    "numberOfVirtualNetworkLinksWithRegistration": 1,
+    //    "provisioningState": "Succeeded"
+    //  },
+    //  "dependsOn": [
+    //    "[resourceId('Microsoft.App/managedEnvironments', parameters('managedEnvironments_name'))]"
+    //  ]
+    //},
+    //{
+    //  "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+    //  "apiVersion": "2018-09-01",
+    //  "name": "[concat(variables('defaultdomain'), '/link')]",
+    //  "location": "global",
+    //  "dependsOn": [
+    //    "[resourceId('Microsoft.Network/privateDnsZones', variables('defaultdomain'))]",
+    //    "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]"
+    //  ],
+    //  "properties": {
+    //    "registrationEnabled": true,
+    //    "virtualNetwork": {
+    //      "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]"
+    //    }
+    //  }
+    //},
     {
-      "type": "Microsoft.App/managedEnvironment",
+      "type": "Microsoft.App/managedEnvironments",
       "apiVersion": "2022-06-01-preview",
-      "name": "[parameters('managedEnvironment_name')]",
+      "name": "[parameters('managedEnvironments_name')]",
       "location": "northcentralusstage",
       "dependsOn": [
-        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'ContainerAppsSubnet')]",
+        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'appssubnet')]",
         "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIP_azurefirewall'))]"
       ],
       "sku": {
@@ -148,7 +187,7 @@
         ],
         "vnetConfiguration": {
           "internal": true,
-          "infrastructureSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'ContainerAppsSubnet')]",
+          "infrastructureSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'appssubnet')]",
           "dockerBridgeCidr": "10.2.0.1/16",
           "platformReservedCidr": "10.1.0.0/16",
           "platformReservedDnsIP": "10.1.0.2",
@@ -173,9 +212,9 @@
       "name": "[parameters('applicationGateways_appgateway_name')]",
       "location": "centralus",
       "dependsOn": [
-        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'AppGatewaySubnet')]",
+        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'webappsubnet')]",
         "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIPAddresses_appgatewayip_name'))]",
-        "[resourceId('Microsoft.App/containerapps', parameters('containerapp_name'))]"
+        "[resourceId('Microsoft.App/containerapps', parameters('containerappname'))]"
       ],
       "properties": {
         "sku": {
@@ -187,7 +226,7 @@
             "name": "appGatewayIpConfig",
             "properties": {
               "subnet": {
-                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'AppGatewaySubnet')]"
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('customer_vnet_name'), 'webappsubnet')]"
               }
             }
           }
@@ -221,7 +260,7 @@
             "properties": {
               "backendAddresses": [
                 {
-                  "ipAddress": "[reference(resourceId('Microsoft.App/managedEnvironment',parameters('managedEnvironment_name')),'2022-03-01', 'Full').properties.staticIp]"
+                  "ipAddress": "[reference(resourceId('Microsoft.App/managedEnvironments',parameters('managedEnvironments_name')),'2022-03-01', 'Full').properties.staticIp]"
                 }
               ]
             }
@@ -234,7 +273,7 @@
               "port": 80,
               "protocol": "Http",
               "cookieBasedAffinity": "Disabled",
-              "hostName": "[concat(parameters('containerapp_name'),'.',reference(resourceId('Microsoft.App/managedEnvironment',parameters('managedEnvironment_name')),'2022-03-01', 'Full').properties.defaultDomain)]",
+              "hostName": "[concat(parameters('containerappname'),'.',reference(resourceId('Microsoft.App/managedEnvironments',parameters('managedEnvironments_name')),'2022-03-01', 'Full').properties.defaultDomain)]",
               "pickHostNameFromBackendAddress": false,
               "requestTimeout": 20
             }
@@ -292,6 +331,7 @@
       "properties": {
         "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
         "principalId": "[parameters('aks-sp-id')]"
+
       },
       "scope": "[concat('Microsoft.Network/routeTables', '/',parameters('egressRoutingTable'))]",
       "dependsOn": [
@@ -353,7 +393,9 @@
 
       "properties": {
         "addressSpace": {
-          "addressPrefixes": ["10.0.0.0/16"]
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
         },
         "subnets": [
           {
@@ -367,7 +409,7 @@
             }
           },
           {
-            "name": "AppGatewaySubnet",
+            "name": "webappsubnet",
             "properties": {
               "addressPrefix": "10.0.3.0/24",
               "serviceEndpoints": [],
@@ -437,14 +479,57 @@
               },
               "rules": [
                 {
-                  "name": "api",
-                  "protocols": ["UDP", "TCP"],
-                  "sourceAddresses": ["*"],
-                  "destinationAddresses": ["*"],
+                  "name": "apiTCP",
+                  "protocols": [
+                    "TCP"
+                  ],
+                  "sourceAddresses": [
+                    "*"
+                  ],
+                  "destinationAddresses": [
+                    "AzureCloud"
+                  ],
                   "sourceIpGroups": [],
                   "destinationIpGroups": [],
                   "destinationFqdns": [],
-                  "destinationPorts": ["*"]
+                  "destinationPorts": [
+                    "443",
+                    "9000"
+                  ]
+                },
+                {
+                  "name": "apiUDP",
+                  "protocols": [
+                    "UDP"
+                  ],
+                  "sourceAddresses": [
+                    "*"
+                  ],
+                  "destinationAddresses": [
+                    "AzureCloud"
+                  ],
+                  "sourceIpGroups": [],
+                  "destinationIpGroups": [],
+                  "destinationFqdns": [],
+                  "destinationPorts": [
+                    "1194"
+                  ]
+                },
+                {
+                  "name": "time",
+                  "protocols": [
+                    "UDP"
+                  ],
+                  "sourceAddresses": [
+                    "*"
+                  ],
+                  "destinationAddresses": [],
+                  "sourceIpGroups": [],
+                  "destinationIpGroups": [],
+                  "destinationFqdns": [ "ntp.ubuntu.com" ],
+                  "destinationPorts": [
+                    "123"
+                  ]
                 }
               ]
             }
@@ -460,50 +545,29 @@
               },
               "rules": [
                 {
-                  "name": "all",
+                  "name": "api",
                   "protocols": [
-                    {
-                      "protocolType": "Http",
-                      "port": 80
-                    },
                     {
                       "protocolType": "Https",
                       "port": 443
-                    },
-                    {
-                      "protocolType": "Mssql",
-                      "port": 1443
                     }
                   ],
                   "fqdnTags": [],
-                  "targetFqdns": ["*"],
-                  "sourceAddresses": ["*"],
-                  "sourceIpGroups": []
-                },
-                {
-                  "name": "fqdn",
-                  "protocols": [
-                    {
-                      "protocolType": "Http",
-                      "port": 80
-                    },
-                    {
-                      "protocolType": "Https",
-                      "port": 443
-                    }
+                  "targetFqdns": [
+                    "mcr.microsoft.com",
+                    "*.data.mcr.microsoft.com",
+                    "management.azure.com",
+                    "login.microsoftonline.com",
+                    "packages.microsoft.com",
+                    "acs-mirror.azureedge.net",
+                    "dc.services.visualstudio.com",
+                    "*.ods.opinsights.azure.com",
+                    "*.oms.opinsights.azure.com",
+                    "*.monitoring.azure.com"
                   ],
-                  "fqdnTags": [
-                    "AzureKubernetesService",
-                    "WindowsVirtualDesktop",
-                    "WindowsUpdate",
-                    "WindowsDiagnostics",
-                    "MicrosoftActiveProtectionService",
-                    "HDInsight",
-                    "AzureBackup",
-                    "AppServiceEnvironment"
+                  "sourceAddresses": [
+                    "*"
                   ],
-                  "targetFqdns": [],
-                  "sourceAddresses": ["*"],
                   "sourceIpGroups": []
                 }
               ]
@@ -596,7 +660,7 @@
     {
       "type": "Microsoft.Network/virtualNetworks/subnets",
       "apiVersion": "2020-11-01",
-      "name": "[concat(parameters('customer_vnet_name'), '/ContainerAppsSubnet')]",
+      "name": "[concat(parameters('customer_vnet_name'), '/appssubnet')]",
       "dependsOn": [
         "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]",
         "[resourceId('Microsoft.Network/routeTables', parameters('egressRoutingTable'))]"
@@ -615,7 +679,7 @@
     {
       "type": "Microsoft.Network/virtualNetworks/subnets",
       "apiVersion": "2020-11-01",
-      "name": "[concat(parameters('customer_vnet_name'), '/AppGatewaySubnet')]",
+      "name": "[concat(parameters('customer_vnet_name'), '/webappsubnet')]",
       "dependsOn": [
         "[resourceId('Microsoft.Network/virtualNetworks', parameters('customer_vnet_name'))]"
       ],
